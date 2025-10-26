@@ -5,26 +5,52 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⚽ BSV Fußballcamp Anmeldung</title>
   <style>
+    /* ---------- GRUNDSTIL ---------- */
     body {
-      background: #00234a;
-      color: #ffffff;
-      text-align: center;
-      font-family: Arial, sans-serif;
-      padding-top: 20vh;
       margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #00234a 0%, #01396e 100%);
+      color: white;
+      font-family: "Arial", sans-serif;
+      text-align: center;
+      overflow: hidden;
+      transition: background 0.5s ease;
     }
 
     h1 {
-      font-size: 2em;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
       color: #76c3ff;
-      margin-bottom: 10px;
+      animation: fadeIn 1.2s ease-in;
     }
 
     p {
-      margin: 0.5em 0;
-      font-size: 1.1em;
+      font-size: 1.1rem;
+      margin-top: 0;
+      opacity: 0.9;
     }
 
+    /* ---------- LOGO ---------- */
+    .logo {
+      width: 100px;
+      height: auto;
+      margin-bottom: 1rem;
+      animation: pulse 2.5s infinite ease-in-out;
+      filter: drop-shadow(0 0 10px rgba(118, 195, 255, 0.3));
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.9; }
+    }
+
+    /* ---------- LADESPINNER ---------- */
     .loader {
       margin: 30px auto;
       border: 6px solid rgba(255, 255, 255, 0.2);
@@ -39,53 +65,61 @@
       100% { transform: rotate(360deg); }
     }
 
-    #ready {
-      display: none;
-      margin-top: 25px;
+    /* ---------- TRANSITION ---------- */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    a {
-      color: #76c3ff;
-      font-weight: bold;
-      text-decoration: underline;
+    /* ---------- RESPONSIV ---------- */
+    @media (max-width: 600px) {
+      h1 { font-size: 1.6rem; }
+      p { font-size: 1rem; padding: 0 1rem; }
+      .logo { width: 80px; }
     }
   </style>
+</head>
+<body>
+  <!-- ---------- INHALT ---------- -->
+  <img class="logo" src="https://upload.wikimedia.org/wikipedia/en/f/fe/Bremer_SV_logo.png" alt="BSV Logo">
+  <h1>⚽ BSV Fußballcamp Anmeldung</h1>
+  <p id="status">Das Anmeldetool startet – bitte einen Moment Geduld …</p>
+  <div class="loader"></div>
 
   <script>
     const renderURL = "https://bsv-fussballschule-anmeldungen.onrender.com";
+    const statusEl = document.getElementById("status");
 
-    async function checkRenderStatus() {
-      const statusEl = document.getElementById("status");
-      const readyEl = document.getElementById("ready");
-
+    async function waitForRender() {
       while (true) {
         try {
-          // Versuche, Render zu erreichen
-          const res = await fetch(renderURL, { mode: "no-cors" });
-          // Wenn keine Fehlermeldung -> weiterleiten
-          window.location.href = renderURL;
+          // Versuch, den Server "anzutippen", ohne kompletten Seiteninhalt zu laden
+          const res = await fetch(renderURL, {
+            method: "HEAD",
+            mode: "no-cors",
+            cache: "no-store"
+          });
+
+          // Wenn kein Fehler, Render ist wach → Weiterleitung
+          console.log("✅ Render ist wach! Leite weiter …");
+          statusEl.textContent = "Tool bereit – Weiterleitung …";
+          setTimeout(() => {
+            window.location.href = renderURL;
+          }, 500);
           return;
         } catch (err) {
-          console.log("Render schläft noch, neuer Versuch in 3 Sekunden...");
+          // Falls Server noch schläft oder 500er gibt → ruhig weiterversuchen
+          console.log("⏳ Render schläft oder startet noch …");
           statusEl.textContent = "Das Anmeldetool startet – bitte einen Moment Geduld …";
         }
 
-        // Warte 3 Sekunden, bevor du erneut prüfst
+        // 3 Sekunden warten, dann erneut versuchen
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
-    window.onload = checkRenderStatus;
+    window.onload = waitForRender;
   </script>
-</head>
-<body>
-  <h1>⚽ BSV Fußballcamp Anmeldung</h1>
-  <p id="status">Das Anmeldetool startet – bitte einen Moment Geduld …</p>
-  <div class="loader"></div>
-  <p id="ready">
-    Das Tool ist jetzt verfügbar –
-    <a href="https://bsv-fussballschule-anmeldungen.onrender.com">zur Anmeldung</a>
-  </p>
 </body>
 </html>
 
