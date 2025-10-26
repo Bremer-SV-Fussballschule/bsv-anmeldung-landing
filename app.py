@@ -764,6 +764,23 @@ async def prewarm_app():
 asyncio.get_event_loop().create_task(prewarm_app())
 
 # =========================
+#   HEALTH-CHECK ENDPOINT
+# =========================
+# Der Health-Check wird von GitHub-Pages (Landingpage) und dem Warmup-Skript aufgerufen,
+# um Render "wach" zu halten, ohne die eigentliche App zu starten.
+# Er liefert einfach {"status": "ok"} zurück.
+
+from nicegui import app
+from fastapi.responses import JSONResponse
+
+@app.get('/healthz')
+def health_check():
+    """Ein einfacher Check, um zu prüfen, ob der Server bereit ist."""
+    return JSONResponse({'status': 'ok'})
+
+print("💓 Healthcheck /healthz aktiviert")
+
+# =========================
 #   START SERVER
 # =========================
 print("🧠 Debug: Starte NiceGUI...")
