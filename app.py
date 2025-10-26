@@ -196,6 +196,78 @@ def is_camp_full(camp_name):
     return current >= max_cap
 
 # =========================
+#   GOOGLE SHEETS: STABIL & CACHED
+# =========================
+import time
+
+# --- Retry-Wrapper für Google Sheets ---
+def safe_sheet_call(func, *args, retries=3, delay=5, **kwargs):
+    """Führt einen Sheets-Aufruf sicher aus und fängt Quota-Fehler ab."""
+    for attempt in range(retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            err_str = str(e)
+            if 'Quota exceeded' in err_str or '429' in err_str:
+                logging.warning(f"⚠️ Google Sheets Quota erreicht – Versuch {attempt+1}/{retries}. Warte {delay}s...")
+                time.sleep(delay)
+                continue
+            else:
+                logging.error(f"❌ Sheets-Fehler in {func.__name__}: {e}")
+                return None
+    logging.error(f"❌ Sheets-Aufruf {func.__name__} nach {retries} Versuchen gescheitert.")
+    return None
+
+
+# --- Cache Setup ---
+CACHE_DURATION = 90  # Sekunden – Cache wird alle 1,5 Minuten neu geladen
+_last_cache_time = 0
+_cached_data = {}
+
+
+def refresh_cache(force=False):
+    """Aktualisiert den Cache, falls älter als CACHE_DURATION oder wenn 'force' True."""
+    global _last_cache_time, _cached_data
+    now = time.time()
+
+    # Cache noch gültig?
+    if not force and now - _last_cache_time < CACHE_DURATION:
+        age = int(now - _last_cache_time)
+        logging.info(f"🕒 Cache {age}s alt – verwende gespeicherte Daten.")
+        return _cached_data
+
+    logging.info("🔄 Aktualisiere Google Sheets Cache...")
+
+    try:
+        camps = safe_sheet_call(get_camp_names) or []
+        prices = safe_sheet_call(get_camp_prices) or {}
+        capacities = safe_sheet_call(get_camp_capacities) or {}
+        images = safe_sheet_call(get_camp_images) or {}
+
+        _cached_data = {
+            'names': camps,
+            'prices': prices,
+            'capacities': capacities,
+            'images': images,
+        }
+
+        _last_cache_time = now
+        logging.info(f"✅ Cache erfolgreich aktualisiert ({len(camps)} Camps).")
+
+    except Exception as e:
+        logging.warning(f"⚠️ Cache konnte nicht aktualisiert werden: {e}")
+
+    return _cached_data
+
+
+def get_cached(key: str):
+    """Liefert Daten aus dem Cache, aktualisiert bei Bedarf automatisch."""
+    global _cached_data
+    if not _cached_data:
+        refresh_cache()
+    return _cached_data.get(key, None)
+
+# =========================
 #   E-MAIL SIGNATUR
 # =========================
 EMAIL_SIGNATURE = """\
@@ -322,8 +394,10 @@ def anmelden():
         # Frühbetreuung + Preis
         frueh_text = frueh.value if frueh.value else 'Keine'
 
-        camp_prices = get_camp_prices()
-        base_price = camp_prices.get(camp.value, 0.0)
+        data_cache = refresh_cache()  # holt aus Cache oder lädt neu, wenn alt
+        camp_prices_cached = data_cache['prices']
+
+        base_price = camp_prices_cached.get(camp.value, 0.0)
 
         extra_price = 15.0 if '08:00' in frueh_text else 0.0
         total_price = base_price + extra_price
@@ -570,10 +644,11 @@ with ui.column().classes('items-center w-full text-center mt-12'):
 with ui.column().classes('campblock'):
     ui.label('🏕️ Camp-Auswahl').classes('text-3xl font-bold mb-2')
 
-    camp_names = get_camp_names() or ['Camp-Auswahl']
-    camp_prices = get_camp_prices()
-    camp_caps = get_camp_capacities()
-    camp_images = get_camp_images()  # <--- NEU: Bilder laden
+    data = refresh_cache()
+    camp_names = data['names']
+    camp_prices = data['prices']
+    camp_caps = data['capacities']
+    camp_images = data['images']
 
     camp = ui.select(
         camp_names,
@@ -716,74 +791,46 @@ camp.on('update:model-value', update_camp_status)
 update_camp_status()
 
 # =========================
-#   PRE-WARM-TASK
-# =========================
-import asyncio
-
-async def prewarm_app():
-    """Initialisiert Ressourcen, damit die App nach Render-Start sofort reagiert."""
-    print("🧠 Pre-Warm-Task gestartet – initialisiere wichtige Komponenten...")
-
-    try:
-        # 1️⃣ Google Sheets vorladen
-        try:
-            camp_names = get_camp_names()
-            camp_prices = get_camp_prices()
-            camp_caps = get_camp_capacities()
-
-            print(f"📋 Camps geladen: {len(camp_names)}")
-            print(f"💰 Preislisten geladen: {len(camp_prices)}")
-            print(f"📈 Kapazitäten geladen: {len(camp_caps)}")
-            print("🟢 Google Sheets Verbindung aktiv.")
-        except Exception as e:
-            print(f"🔴 Fehler bei Google Sheets: {e}")
-
-        # 2️⃣ Brevo / API-Key prüfen
-        api_key = os.environ.get("BREVO_API_KEY") or os.environ.get("SMTP_PASSWORD")
-        if api_key:
-            print("📡 Brevo API-Key erkannt – Versandmodul bereit.")
-        else:
-            print("⚠️ Kein Brevo API-Key gefunden! Bitte in Render Environment setzen.")
-
-        # 3️⃣ Konfiguration prüfen
-        try:
-            print(f"⚙️ SMTP Host: {CFG.get('smtp_host', 'unbekannt')}")
-            print(f"⚙️ SMTP User: {CFG.get('smtp_user', 'unbekannt')}")
-        except Exception:
-            print("⚠️ Keine CFG-Daten verfügbar.")
-
-        # 4️⃣ Simulierte Initial-Delay (für Cold-Start-Puffer)
-        await asyncio.sleep(1)
-        print("🔥 Pre-Warm abgeschlossen – App vollständig startbereit!")
-
-    except Exception as e:
-        print(f"❌ Unerwarteter Fehler im Pre-Warm-Task: {e}")
-
-
-# Task nach App-Start ausführen
-asyncio.get_event_loop().create_task(prewarm_app())
-
-# =========================
 #   HEALTH-CHECK ENDPOINT
 # =========================
-# Der Health-Check wird von GitHub-Pages (Landingpage) und dem Warmup-Skript aufgerufen,
-# um Render "wach" zu halten, ohne die eigentliche App zu starten.
-# Er liefert einfach {"status": "ok"} zurück.
-
 from nicegui import app
 from fastapi.responses import JSONResponse
 
 @app.get('/healthz')
 def health_check():
-    """Ein einfacher Check, um zu prüfen, ob der Server bereit ist."""
+    """Wird von Landingpage & GitHub Action aufgerufen, um den Dienst wach zu halten."""
     return JSONResponse({'status': 'ok'})
 
 print("💓 Healthcheck /healthz aktiviert")
+
+
+# =========================
+#   PRE-WARM TASK (CACHE)
+# =========================
+import asyncio
+
+async def prewarm_app():
+    """Lädt beim Start bereits alle Sheets-Daten in den Cache,
+    damit Render beim ersten echten Besucher sofort reagiert."""
+    await asyncio.sleep(2)
+    logging.info("🔥 Prewarm gestartet – lade Google Sheets Daten...")
+    refresh_cache(force=True)
+    logging.info("✅ Prewarm abgeschlossen – Cache bereit.")
+
 
 # =========================
 #   START SERVER
 # =========================
 print("🧠 Debug: Starte NiceGUI...")
+
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.create_task(prewarm_app())
+
     port = int(os.environ.get('PORT', 8080))
-    ui.run(title='Fußballcamp Anmeldung', host='0.0.0.0', port=port, reload=False)
+    ui.run(
+        title='Fußballcamp Anmeldung',
+        host='0.0.0.0',
+        port=port,
+        reload=False
+    )
