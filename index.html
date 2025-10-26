@@ -1,26 +1,28 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⚽ BSV Fußballcamp Anmeldung</title>
   <style>
     body {
       background: #00234a;
       color: #ffffff;
-      font-family: Arial, sans-serif;
       text-align: center;
+      font-family: Arial, sans-serif;
       padding-top: 20vh;
+      margin: 0;
     }
 
     h1 {
       font-size: 2em;
-      margin-bottom: 10px;
       color: #76c3ff;
+      margin-bottom: 10px;
     }
 
     p {
       margin: 0.5em 0;
+      font-size: 1.1em;
     }
 
     .loader {
@@ -34,57 +36,56 @@
     }
 
     @keyframes spin {
-      100% {
-        transform: rotate(360deg);
-      }
+      100% { transform: rotate(360deg); }
     }
 
     #ready {
       display: none;
-      margin-top: 20px;
+      margin-top: 25px;
     }
 
     a {
       color: #76c3ff;
-      text-decoration: underline;
       font-weight: bold;
+      text-decoration: underline;
     }
   </style>
 
   <script>
     const renderURL = "https://bsv-fussballschule-anmeldungen.onrender.com";
 
-    async function waitForRender() {
-      const status = document.getElementById("status");
-      const ready = document.getElementById("ready");
-
-      status.textContent = "Das Anmeldetool wird gestartet – bitte einen Moment Geduld.";
+    async function checkRenderStatus() {
+      const statusEl = document.getElementById("status");
+      const readyEl = document.getElementById("ready");
 
       while (true) {
         try {
-          const res = await fetch(renderURL + "/healthz", { mode: "no-cors" });
-          // Wenn Render bereit ist, leite um
+          // Versuche, Render zu erreichen
+          const res = await fetch(renderURL, { mode: "no-cors" });
+          // Wenn keine Fehlermeldung -> weiterleiten
           window.location.href = renderURL;
           return;
-        } catch {
-          console.log("⏳ Render noch nicht erreichbar, versuche erneut...");
+        } catch (err) {
+          console.log("Render schläft noch, neuer Versuch in 3 Sekunden...");
+          statusEl.textContent = "Das Anmeldetool startet – bitte einen Moment Geduld …";
         }
 
-        // Kleine Pause, bevor der nächste Versuch startet
-        await new Promise((r) => setTimeout(r, 3000));
+        // Warte 3 Sekunden, bevor du erneut prüfst
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
-    window.onload = waitForRender;
+    window.onload = checkRenderStatus;
   </script>
 </head>
-
 <body>
   <h1>⚽ BSV Fußballcamp Anmeldung</h1>
-  <p id="status">Das Anmeldetool wird gestartet – bitte einen Moment Geduld.</p>
+  <p id="status">Das Anmeldetool startet – bitte einen Moment Geduld …</p>
   <div class="loader"></div>
   <p id="ready">
-    Das Tool ist jetzt verfügbar – <a href="https://bsv-fussballschule-anmeldungen.onrender.com">weiter zur Anmeldung</a>
+    Das Tool ist jetzt verfügbar –
+    <a href="https://bsv-fussballschule-anmeldungen.onrender.com">zur Anmeldung</a>
   </p>
 </body>
 </html>
+
