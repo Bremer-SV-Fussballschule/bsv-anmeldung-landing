@@ -7,41 +7,84 @@
   <style>
     body {
       background: #00234a;
-      color: white;
-      text-align: center;
+      color: #ffffff;
       font-family: Arial, sans-serif;
+      text-align: center;
       padding-top: 20vh;
     }
+
+    h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+      color: #76c3ff;
+    }
+
+    p {
+      margin: 0.5em 0;
+    }
+
     .loader {
       margin: 30px auto;
-      border: 6px solid #f3f3f3;
+      border: 6px solid rgba(255, 255, 255, 0.2);
       border-top: 6px solid #76c3ff;
       border-radius: 50%;
       width: 70px;
       height: 70px;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin {100% {transform: rotate(360deg);}}
-    a {color: #76c3ff;}
-  </style>
-  <script>
-    async function checkRender() {
-      const renderURL = "https://bsv-fussballschule-anmeldungen.onrender.com";
-      try {
-        const r = await fetch(renderURL, {mode: "no-cors"});
-        if (r.status === 200) window.location.href = renderURL;
-        else setTimeout(checkRender, 4000);
-      } catch {
-        setTimeout(checkRender, 4000);
+
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
       }
     }
-    window.onload = checkRender;
+
+    #ready {
+      display: none;
+      margin-top: 20px;
+    }
+
+    a {
+      color: #76c3ff;
+      text-decoration: underline;
+      font-weight: bold;
+    }
+  </style>
+
+  <script>
+    const renderURL = "https://bsv-fussballschule-anmeldungen.onrender.com";
+
+    async function waitForRender() {
+      const status = document.getElementById("status");
+      const ready = document.getElementById("ready");
+
+      status.textContent = "Das Anmeldetool wird gestartet – bitte einen Moment Geduld.";
+
+      while (true) {
+        try {
+          const res = await fetch(renderURL + "/healthz", { mode: "no-cors" });
+          // Wenn Render bereit ist, leite um
+          window.location.href = renderURL;
+          return;
+        } catch {
+          console.log("⏳ Render noch nicht erreichbar, versuche erneut...");
+        }
+
+        // Kleine Pause, bevor der nächste Versuch startet
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+
+    window.onload = waitForRender;
   </script>
 </head>
+
 <body>
   <h1>⚽ BSV Fußballcamp Anmeldung</h1>
-  <p>Das Anmeldetool wird gestartet – bitte einen Moment Geduld.</p>
+  <p id="status">Das Anmeldetool wird gestartet – bitte einen Moment Geduld.</p>
   <div class="loader"></div>
-  <p>Wenn die Seite nach 20 Sekunden nicht lädt, <a href="https://bsv-fussballschule-anmeldungen.onrender.com">hier klicken</a>.</p>
+  <p id="ready">
+    Das Tool ist jetzt verfügbar – <a href="https://bsv-fussballschule-anmeldungen.onrender.com">weiter zur Anmeldung</a>
+  </p>
 </body>
 </html>
